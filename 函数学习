@@ -1,0 +1,96 @@
+1.函数的用处以及创建函数
+#利用循环计算斐波那契数列
+fibs=[0,1]
+for i in range(8): #range(8):从1到8的list
+    fibs.append(fibs[-2]+fibs[-1]) #取fibs list最后两位相加并且附加到fibs后面；内置函数不能“赋给”(fibs=fibs.append无效)
+--------------
+#程序应该是抽象的
+#函数是可以调用的（可能带有参数，也就是在圆括号中的值），它执行某种行为并且返回一个值
+--------------
+#利用函数计算斐波那契数列
+def fibs(num):
+    result=[0,1]
+    for i in range(num-2):
+        result.append(result[-2]+result[-1])
+    return result #没有return语句，或者return语句后面没有跟任何值的函数不“返回”值，即返回值为None
+--------------
+#def语句中函数名后面的变量通常叫做函数的形参，调用函数时提供的值是实参
+#在函数内为参数赋予新值不会改变外部任何变量的值
+def try_to_change(n):
+    n='Rachael'
+    return n
+name='Monica'
+try_to_change(name)
+name
+#结果为Monica
+print (try_to_change(name))
+#结果为Rachael，但是name的值并没有被改变;字符串（以及数字和元组）是不可变得，即无法被修改
+
+def try_to_change(n):
+    n[0]='Rachael'
+names=['Monica','Fibby']
+try_to_change(names)
+names
+#结果为['Rachael','Fibby'],这个时候列表已经被改变；想要避免这种情况，准备好原列表的副本，对副本进行操作
+---------------
+
+2.函数的参数＋一个例子
+e.g:编写一个储存名字并且能够用名字、中间名或者姓查找联系人的程序：
+2.1 一些原始的方法
+#使用以下数字结构：
+storage={}
+storage['first']={}
+storage['middle']={}
+storage['last']={}
+#storage这个数据结构是带有3个键first，middle，last的字典，每个键下面都又储存一个字典。子字典中，使用名字作为键，插入联系人列表作为值。
+me='Rachael Qian Zhu'
+storage['first']['Rachael']=[me]
+storage['middle']['Qian']=[me]
+storage['last']['Zhu']=[me]
+#每个键下面都存储了一个以人名组成的列表。
+#加入很多人时，不调用函数，只能扩展存储列表。假设不知道数据库中已经存储了什么：
+my_mother='Vivi Weiwei Zhu'
+storage['last'].setdefault('Zhu',[]).append(my_mother)
+2.2 利用函数储存名字
+1)#初始化数据结构，这里相当于给一个最初的数据结构：
+def init(data):
+    data['first']={}
+    data['middle']={}
+    data['last']={}
+storage={}
+init(storage)
+storage #字典的键没有特定顺序，出来顺序如果是乱的很正常
+2)#定义查找名字是否已经被存储，并且获得属于参数标签和名字的函数：
+def lookup(data,label,name):
+    return data[label].get(name)
+3)#定义储存名字的函数：
+#定义储存名字的函数：
+def store(data,full_name):#使用参数data和full_name进入函数，这两个函数被设置为函数在外部获得的一些值
+    names=full_name.split()#将名字依照空格拆开，得到一个叫names的新列表
+    if len(names)==2:
+        names.insert(1,'')#如果名字只有首尾，插入一个空字符串作为中间名
+    labels=['first','middle','last']
+    for label,name in zip(labels,names):#使用zip函数联合标签和名字，对于每一个(label,name)对(两个对应的list)，进行以下处理：
+        people=lookup(data,label,name) #获得属于给定标签和名字的列表
+        if people: #(==None)
+            people.append(full_name) #插入一个需要的新列表
+        else:
+            data[label][name]=[full_name] #将full—name添加到列表中
+Names={}
+init(Names)
+store(Names,'Rachael Qian Zhu')
+lookup(Names,'middle','Qian')
+-----------------------------
+#python中，函数只能修改参数对象本身；但是有的参数不可变（比如数字），只能从函数中返回所有你需要的值
+-----------------------------
+
+3.关键字参数和默认值
+#位置参数：参数是什么是由输入的位置判断的；
+#关键字参数：使用形式为，参数名＝参数；
+#%s表示字符串格式化，如果是int要用%d;最基本的用法是将值插入到%s 占位符的字符串中  。
+e.g 'my name is Rachael'
+print ('Hello %s')
+#关键字参数可以设置默认值
+e.g def hello(greeting='hello',name='world')
+#位置参数在前，关键字参数在后，它们就可以同时使用；
+
