@@ -17,4 +17,4 @@ df=df.drop(index='IF1812')
 5.df.apply很好用
 df['hedge']=df.apply(lambda x:x['multiple']['mean']*x['hedgenumber']*x['结算价']['mean'],axis=1)
 #lambda x表示对每行进行操作，x为表示行的参数；axis＝1表示操作在列之间
-#df.apply表示对dataframe进行某些操作，后面可以直接跟function
+#df.apply可以对dataframe进行某些操作，后面可以直接跟function；可以用于对行、列、单个元素的操作；
