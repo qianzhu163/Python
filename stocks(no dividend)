@@ -1,0 +1,107 @@
+1.import
+import cx_Oracle
+import pandas as pd
+import matplotlib as plt
+from pylab import *
+
+2.stock1：获取股票交易信息
+conn=cx_Oracle.connect("wind_read_only", "wind_read_only", "192.168.0.223:1521/orcl",encoding='gbk')
+cursor=conn.cursor()
+#连一次即可，记得把connection关掉
+sql="select distinct CHINAAMCQUANT.PROD_TRADE_BAK.TRADEDATE, \
+CHINAAMCQUANT.PROD_TRADE_BAK.SEC_CODE, \
+CHINAAMCQUANT.PROD_TRADE_BAK.ID,CHINAAMCQUANT.PROD_TRADE_BAK.SEC_NAME, \
+CHINAAMCQUANT.PROD_TRADE_BAK.PRICE,CHINAAMCQUANT.PROD_TRADE_BAK.QUANTITY,CHINAAMCQUANT.PROD_POSITION.TYPE \
+from CHINAAMCQUANT.PROD_TRADE_BAK,CHINAAMCQUANT.PROD_POSITION \
+where CHINAAMCQUANT.PROD_POSITION.TYPE='stock' and \
+CHINAAMCQUANT.PROD_TRADE_BAK.SEC_CODE = CHINAAMCQUANT.PROD_POSITION.SEC_CODE \
+order by CHINAAMCQUANT.PROD_TRADE_BAK.TRADEDATE,CHINAAMCQUANT.PROD_TRADE_BAK.SEC_CODE"
+#要在\之前打一个空格,条件语句中出现的字段一定要被select住，不然报错；
+#distinct是显示唯一的记录
+cursor.execute(sql)
+stock1=cursor.fetchall()
+stock1=pd.DataFrame(data=stock1,columns=['交易日期','证券代码', '交易ID', '证券名称', '交易价格','成交数量','证券种类'])
+stock1=stock1.drop(['交易ID','证券种类'],axis=1)
+#把列丢掉一定要加axis＝1
+
+3.stock2：获取股票收盘价
+sql1="select S_INFO_WINDCODE,TRADE_DT,S_DQ_CLOSE from wind.ashareeodprices \
+where TRADE_DT >20180424"
+cursor.execute(sql1)
+stock2=cursor.fetchall()
+stock2=pd.DataFrame(data=stock2,columns=['证券代码', '交易日期', '收盘价'])
+stock_name_adjust=[]
+for i in stock2['证券代码']:
+    a=i[0:6]
+    stock_name_adjust.append(a)
+stock2['证券代码']=stock_name_adjust
+
+4.stock3：合并前两张表格，得到一张包含交易信息与收盘信息的表格
+stock3=pd.merge(stock1,stock2)
+#这里用concat上下何必给你，merge左右合并
+
+5.df1：计算每支股票的日净收益（不含初始交易）
+df1=pd.DataFrame(stock3.groupby(['证券代码','交易日期','证券名称','收盘价','交易价格']) \
+                 ['成交数量'].sum(), columns=['成交数量'])
+df1=df1.reset_index()
+df1['成交金额']=df1['成交数量']*df1['交易价格']
+df1['hedgenumber']=df1.groupby(['证券代码'])['成交数量'].cumsum()*(-1)
+df1['hedge']=df1['hedgenumber']*df1['收盘价']
+df1['yesterdayhedge']=df1.groupby(['证券代码'])['hedge'].shift(1)*(-1)
+df1['日净收益']=(df1['成交金额']+df1['hedge']+df1['yesterdayhedge'])*(-1)
+df1.to_csv('stocks_return.csv',encoding='gbk')
+
+6.df3：计算个股的累计收益
+df3=pd.DataFrame(df1.groupby(['证券名称'])['日净收益'].sum(),columns=['日净收益'])
+df3.rename(columns={'日净收益':'个股累计收益'})
+
+7.df_initial：处理每只个股的第一笔交易，没有yesterdayhedge，但是有日净收益
+df_initial=df1[df1.isnull().values==True] #loc是通过标签来选择数据,先行后列；这里这船代码是把有含Nan值的行都挑出来；
+df_initial['日净收益']=(df_initial['成交金额']+df_initial['hedge'])*(-1)
+df_initial=df_initial.drop_duplicates() #去除重复的数据
+
+8.df2：将初始交易信息上合并到原表，计算累计净收益
+df1=df1.dropna()
+df2=pd.concat([df_initial,df1])
+df2=pd.DataFrame(df2.groupby(['交易日期'])['日净收益'].sum(),columns=['日净收益'])
+df2['累计净收益']=df2['日净收益'].cumsum()
+
+9.画出未处理的股票回收率
+df_pic=df2.reset_index()
+df_pic['benchmark']=0
+fig=plt.figure(figsize=(6,3),dpi=100)
+date = df_pic['交易日期']
+dailyreturn = df_pic['日净收益']
+accreturn=df_pic['累计净收益']
+benchmark=df_pic['benchmark']
+plt.bar(range(len(dailyreturn)),dailyreturn,tick_label=date,label='daily return')
+plt.plot(range(len(accreturn)),accreturn,'o-',color = 'g',label='accumulative return')
+plt.plot(range(len(accreturn)),benchmark,'r',color = 'k',label='0-axis')
+plt.legend(loc=3)
+plt.xlabel('trading day')
+plt.xticks(rotation=90)
+plt.ylabel('')
+plt.title('Return of stocks')
+plt.savefig('return_stocks.png',dpi=100)
+plt.show()
+
+10.stock4：筛选有除权情况发生的股票信息
+sql2="select S_INFO_WINDCODE,EX_DATE,EX_TYPE,EX_DESCRIPTION \
+from WIND.ASHAREEXRIGHTDIVIDENDRECORD \
+where EX_DATE>20180424"
+cursor.execute(sql2)
+d=cursor.fetchall()
+stock4=pd.DataFrame(data=d,columns=['证券代码','交易日期','除权种类','具体描述'])
+stock_name_adjust_dividend=[]
+for i in stock4['证券代码']:
+    a=i[0:6]
+    stock_name_adjust_dividend.append(a)
+stock4['证券代码']=stock_name_adjust_dividend
+
+11.stock5:获取交易股中有除权信息的记录（某种程度上stock1是用来筛选合并的，
+#这个地方不使用SQL的原因是
+#1）各表中股票代码表示方法不一样
+#2）SQL要带着数据库名／表名，眼睛看花；
+#熟SQL的话会不会简单很多？）
+stock5=pd.merge(stock1,stock4)
+stock5
