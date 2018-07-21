@@ -1,0 +1,23 @@
+Structured Data－结构化数据
+
+一些Python常用的Module：
+
+Numpy:
+1.为Python提供快速的数组处理能力；
+2.作为在算法之间传递数据的容器；对于数值型数据，Numpy数组在存储和处理数据时比较高效。
+
+Pandas：
+1.最多用于DataFrame，面向列的二维表结构，含有行标和列标；
+2.提供了复杂但是精细的索引功能；
+3.Pandas适用于金融数据分析应用。
+
+Matplotlib
+
+IPython：是一个增强的Python shell，能提高编写、测试、调试Python代码的速度。
+
+Scipy：解决科学计算中各种标准问题域的包的集合。
+
+一些行话：
+数据规整：Munge,Munging,Wrangling，将非结构化或散乱数据处理为结构化或整洁形式的整个过程；
+伪码：Pseudocode，算法或过程“代码式”描述，并不是实际有效的源代码；
+语法糖：Syntactic sugar，一种编程语法，不带来新的特性，使代码更易读、更易写。
