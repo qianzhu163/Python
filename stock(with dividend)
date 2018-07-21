@@ -1,0 +1,169 @@
+import cx_Oracle
+import pandas as pd
+import matplotlib as plt
+from pylab import *
+from __future__ import division #这是能整数、浮点数相互
+-------------------
+1.#stock_trade：获取股票交易信息
+conn=cx_Oracle.connect("wind_read_only", "wind_read_only", "192.168.0.223:1521/orcl",encoding='gbk')
+cursor=conn.cursor() #连一次即可，记得把connection关掉
+sql="select distinct CHINAAMCQUANT.PROD_TRADE_BAK.TRADEDATE, \
+CHINAAMCQUANT.PROD_TRADE_BAK.SEC_CODE, \
+CHINAAMCQUANT.PROD_TRADE_BAK.ID,CHINAAMCQUANT.PROD_TRADE_BAK.SEC_NAME, \
+CHINAAMCQUANT.PROD_TRADE_BAK.PRICE,CHINAAMCQUANT.PROD_TRADE_BAK.QUANTITY,CHINAAMCQUANT.PROD_POSITION.TYPE \
+from CHINAAMCQUANT.PROD_TRADE_BAK,CHINAAMCQUANT.PROD_POSITION \
+where CHINAAMCQUANT.PROD_POSITION.TYPE='stock' and \
+CHINAAMCQUANT.PROD_TRADE_BAK.SEC_CODE = CHINAAMCQUANT.PROD_POSITION.SEC_CODE \
+order by CHINAAMCQUANT.PROD_TRADE_BAK.TRADEDATE,CHINAAMCQUANT.PROD_TRADE_BAK.SEC_CODE"
+#要在\之前打一个空格,条件语句中出现的字段一定要在select对象里，不然报错；
+#distinct是显示唯一的记录
+cursor.execute(sql)
+stock_trade=cursor.fetchall()
+stock_trade=pd.DataFrame(data=stock_trade,columns=['交易日期','code', '交易ID', '证券名称', '交易价格','成交数量','证券种类'])
+stock_trade=stock_trade.drop(['交易ID','证券种类'],axis=1)
+#把列丢掉一定要加axis＝1
+code_container=list(stock_trade['code'].drop_duplicates())
+--------------------
+2.#stock_closeprice：获取股票收盘价
+sql1="select S_INFO_WINDCODE,TRADE_DT,S_DQ_CLOSE from wind.ashareeodprices \
+where TRADE_DT between 20180424 and 20180629"
+cursor.execute(sql1)
+stock_closeprice=cursor.fetchall()
+stock_closeprice=pd.DataFrame(data=stock_closeprice,columns=['code', '交易日期', '收盘价'])
+#统一股票代码的表示方式；证券代“码”给报错，所以记成code;
+stock_name_adjust=[]
+for i in stock_closeprice['code']:
+    a=i[0:6]
+    stock_name_adjust.append(a)
+stock_closeprice['code']=stock_name_adjust
+--------------------
+3.#stock_stat：合并前两张表格，得到一张包含交易信息与收盘信息的表格
+stock_stat=pd.merge(stock_trade,stock_closeprice)
+#merge只合并共同值，相当于“取交集”
+--------------------
+4.#stock_dividend：筛选有除权情况发生的持仓股票信息
+sql2="select S_INFO_WINDCODE,EX_DATE,EX_TYPE,EX_DESCRIPTION \
+from WIND.ASHAREEXRIGHTDIVIDENDRECORD \
+where EX_DATE >20180424"
+cursor.execute(sql2)
+d=cursor.fetchall()
+d1=pd.DataFrame(data=d,columns=['code','XDdate','除权种类','具体描述'])
+stock_name_adjust_dividend=[]
+for i in d1['code']:
+    a=i[0:6]
+    stock_name_adjust_dividend.append(a)
+d1['code']=stock_name_adjust_dividend
+stock_dividend=pd.DataFrame(d1[d1['code'].isin(code_container)],columns=['code','XDdate','除权种类','具体描述'])
+#stock_dividend
+----------------
+5.#stock_beforeXD:股票除权／除息前持仓请况
+stock_beforeXD=pd.DataFrame(data=stock_stat.groupby(['code','交易日期','证券名称'])['成交数量'].sum(),columns=['成交数量'])
+stock_beforeXD.reset_index()
+stock_beforeXD=pd.DataFrame(data=stock_beforeXD.groupby(['code','证券名称'])['成交数量'].cumsum(),columns=['成交数量'])
+stock_beforeXD=stock_beforeXD.rename(columns={'成交数量':'日终累计持仓'})
+stock_beforeXD=stock_beforeXD.reset_index()
+stock_beforeXD['除权前累计持仓']=stock_beforeXD.groupby(['code','证券名称'])['日终累计持仓'].shift(1)
+stock_beforeXD=stock_beforeXD.fillna(0)
+stock_beforeXD['上次交易日期']=stock_beforeXD.groupby(['code','证券名称'])['交易日期'].shift(1)
+stock_beforeXD=stock_beforeXD.dropna()
+#在除权日当天交易没有用，可以把这些天给去掉
+#stock_beforeXD
+#光execute没有用，要返回值才会改变；
+#（什么玩意儿。。）
+#print (stock_stat[stock_stat['code']=='000060'])(检验是对滴～)
+----------------
+6.#dividend:找出现金分红和股票分红的具体值
+cash=[]
+stock=[]
+for description in stock_dividend['具体描述']:
+    a=description.find('派')
+    b=description.find('元')
+    cash.append(float(description[(a+1):b]))
+    c=description.find('转')
+    if c!=-1:
+        d=description.find('股')
+        e=description[(c+1):]
+        f=float(e[0])
+        stock.append(f)
+        #stock.append(description[(c+1):]) #[c+1:d]读不出来
+    else:stock.append(0)
+dict={'code': stock_dividend['code'],'XDdate':stock_dividend['XDdate'],'cash':cash,'stock':stock}
+dividend=pd.DataFrame(dict)
+#dividend
+----------------
+7.#dividend_stat:判断是否有除权发生并计算股票／现金分红
+dividend_stat=(pd.merge(stock_beforeXD,dividend,left_on='code',right_on='code')).drop_duplicates()
+#dividend_stat
+----------------
+8.stock1=pd.concat([dividend_stat,pd.DataFrame(columns=['现金分红','除权后累计持仓'])],axis=1)
+#test:计算交易期内有除权情况发生的股票的现金分红和仓位增加
+test=[]
+for index,row in stock1.iterrows():
+    comparedate=int(row['上次交易日期'])
+    XDdate=int(row['XDdate'])
+    tradedate=int(row['交易日期'])
+    if comparedate<XDdate<=tradedate and row['除权前累计持仓']>0:
+        row['现金分红']=row['cash']*row['除权前累计持仓']/10
+        row['除权后累计持仓']=row['除权前累计持仓']+row['除权前累计持仓']*row['stock']/10
+        test.append(row)
+test=pd.DataFrame(test)
+test['除权增加持仓']=test['除权后累计持仓']-test['除权前累计持仓']
+test=test.drop(columns=['日终累计持仓','除权前累计持仓','上次交易日期','XDdate','cash','stock','除权后累计持仓'])
+#调成和股票统计表一样的格式
+test=test.rename(columns={'现金分红':'成交金额','除权增加持仓':'成交数量'})
+test1=(stock_stat.drop(columns=['交易价格','成交数量'])).drop_duplicates()
+stock_with_dividend=(pd.merge(test1,test,left_on=['code','交易日期','证券名称'],right_on=['code','交易日期','证券名称']))
+stock_with_dividend
+-------------------
+9.#stock_daily_return：计算每支股票的日净收益（不含初始交易）
+stock_daily_return=pd.DataFrame(stock_stat.groupby(['code','交易日期','证券名称','收盘价','交易价格']) \
+                 ['成交数量'].sum(), columns=['成交数量'])
+stock_daily_return=stock_daily_return.reset_index()
+stock_daily_return['成交金额']=stock_daily_return['成交数量']*stock_daily_return['交易价格']
+stock_daily_return=stock_daily_return.drop(columns=['交易价格'])
+stock_daily_return=pd.DataFrame(stock_daily_return.groupby(['code','交易日期','证券名称','收盘价'])['成交数量','成交金额'].sum(), \
+                 columns=['成交数量','成交金额'])
+stock_daily_return=stock_daily_return.reset_index()
+stock_daily_return=pd.concat([stock_with_dividend,stock_daily_return],ignore_index=True,sort=True)
+test2=pd.DataFrame(stock_daily_return.groupby(['code','交易日期','证券名称','收盘价'])['成交数量','成交金额'].sum(), \
+                   columns=['成交数量','成交金额'])
+stock_daily_return=test2.reset_index()
+stock_daily_return['hedgenumber']=stock_daily_return.groupby(['code'])['成交数量'].cumsum()*(-1)
+stock_daily_return['hedge']=stock_daily_return['hedgenumber']*stock_daily_return['收盘价']
+stock_daily_return['yesterdayhedge']=stock_daily_return.groupby(['code'])['hedge'].shift(1)*(-1)
+stock_daily_return['日净收益']=(stock_daily_return['成交金额']+stock_daily_return['hedge']+ \
+                            stock_daily_return['yesterdayhedge'])*(-1)
+stock_daily_return.to_csv('stocks_return.csv',encoding='gbk')
+stock_daily_return
+------------------
+10.#df_initial：处理每只个股的第一笔交易，没有yesterdayhedge，但是有日净收益
+df_initial=stock_daily_return[stock_daily_return.isnull().values==True] #loc是通过标签来选择数据,先行后列；这里这船代码是把有含Nan值的行都挑出来；
+df_initial['日净收益']=(df_initial['成交金额']+df_initial['hedge'])*(-1)
+df_initial=df_initial.drop_duplicates() #去除重复的数据
+df_initial
+------------------
+11.#total_return：将初始交易信息上合并到原表，计算累计净收益
+stock_daily_return=stock_daily_return.dropna()
+stock_daily_return=pd.concat([df_initial,stock_daily_return])
+total_return=pd.DataFrame(stock_daily_return.groupby(['交易日期'])['日净收益'].sum(),columns=['日净收益'])
+total_return['累计净收益']=total_return['日净收益'].cumsum()
+total_return
+------------------
+12.#画出未处理的股票回收率
+df_pic=total_return.reset_index()
+df_pic['benchmark']=0
+fig=plt.figure(figsize=(6,3),dpi=100)
+date = df_pic['交易日期']
+dailyreturn = df_pic['日净收益']
+accreturn=df_pic['累计净收益']
+benchmark=df_pic['benchmark']
+plt.bar(range(len(dailyreturn)),dailyreturn,tick_label=date,label='daily return')
+plt.plot(range(len(accreturn)),accreturn,'o-',color = 'g',label='accumulative return')
+plt.plot(range(len(accreturn)),benchmark,'r',color = 'k',label='0-axis')
+plt.legend(loc=3)
+plt.xlabel('trading day')
+plt.xticks(rotation=90)
+plt.ylabel('')
+plt.title('Return of stocks')
+plt.savefig('return_stocks.png',dpi=100)
+plt.show()
