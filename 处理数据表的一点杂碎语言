@@ -18,3 +18,63 @@ df=df.drop(index='IF1812')
 df['hedge']=df.apply(lambda x:x['multiple']['mean']*x['hedgenumber']*x['结算价']['mean'],axis=1)
 #lambda x表示对每行进行操作，x为表示行的参数；axis＝1表示操作在列之间
 #df.apply可以对dataframe进行某些操作，后面可以直接跟function；可以用于对行、列、单个元素的操作；
+
+6.分组后取每组最后一行：
+1).遍历每组（速度较慢）：
+df=pd.DataFrame() #建立一个新的空的dataframe；
+1.1）
+for index,group in df1.groupby(): #index为分组赋予的索引，group为根据索引分组后生成的dataframe；
+b=group.sort_values(by='').tail(1) #对每组依据同一标准排序后取最后一行；
+df=df.append(b) #把dataframe append到dataframe上,本来为对象，一定要返回值；
+1.2）
+for index,row in df1.groupby(): #对每个group里的每个行进行遍历；
+
+2).先排序，后分组取行（速度快了许多）：
+df1=df.sort_values(by='') #sort_values为排序功能，默认升序与python自带的比较顺序；排序前想清楚自己的标准是什么；
+df1=df1.reset_index()     #排序之后index可能乱了，这个时候需要重新设置index；
+df2=df1.groupby().tail(1) #返回分组后所有组的最后一行，自成一个dataframe；
+
+7.对dataframe的每行进行遍历：
+for index,row in df:   #对象为object，要变成值需要返回；
+row['']=row['']-row[''].shift(1)   #shift（1）为列往下移动一格；
+
+8.None,NaN：
+#None是python自带记录“空值”的一个符号；
+#NaN相当于None的一个子集，是numpy中表示“没有数值”的方式；
+#在df切片处理中，若用=None语句，不能排除/筛选出NaN；
+#在df切片处理中，若想排除/筛选出NaN，可以用numpy.nan或者isnull.value()==True的方式；
+
+9.读dataframe的时候最左边出现Unnamed一列：
+#在pd.read_csv加入index_col=0就不会
+#read过后加入().drop(columns=[''])
+
+10.重命名dataframe列名：
+#pd.rename(columns={'':''})
+
+11.merge，concat：
+#pd.merge(df1,df2,how='left/right')  #保留左表/右表中的所有数据，merge相当于取交集；
+#pd.concat([df1,df2],axis=1,ignore_index=True)  #轴1表示按列concat，忽视index表示index连续；
+
+12.pd.set_option('display.max_rows', 500) #设置dataframe最多可看见的行数；
+
+13.切片处置：
+df[df['column']!=] #切片[]表示筛选条件；
+df[df.isnull().values==True] #用切片筛选出空值；
+df[df['column'].isin()] #筛选列值在某集合内的记录；
+
+14.sql语句：
+select...from...where...orderby...
+insert into table(index) values(values)
+建立游标连接数据库执行sql:
+conn=cx_Oracle.connect()
+cursor=conn.cursor()
+cursor.execute()
+cursor.fetchall/fetchone()
+
+15.对nan的处理：
+df.dropna() #drop掉空值
+df.fillna() #填充空值
+
+
+
+
