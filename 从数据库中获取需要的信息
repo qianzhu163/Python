@@ -28,3 +28,38 @@ for i in result_container:
 #r=cursor.fetchall() #用光标获得所有的结果
 #print (type(result_container[2])) #查看储存容器里的元素都是什么
 print (df) #输出获得的dataframe
+
+1.sql语句：
+查询：select...from...where...orderby...
+插入：insert into table(index) values(values)
+
+2.建立游标连接数据库执行sql:
+conn=cx_Oracle.connect()
+cursor=conn.cursor()
+cursor.execute(sql)
+cursor.fetchall/fetchone()
+conn.close() 
+
+3.插入数据
+1）循环：
+for i in range(stock_trade_add.shape[0]):  #获得dataframe的大小，对dataframe每行进行遍历； 
+    sql="insert into chinaamcquant.prod_trade_bak(id,tradedate,market,price,quantity,sec_code,prod_code, \
+    sec_name,flag) values('"+str(stock_trade_add['id'][i])+"','"+str(stock_trade_add['date'][i])+"', \
+    '"+str(stock_trade_add['market'][i])+"', '"+str(stock_trade_add['tradeprice'][i])+"', \
+    '"+str(stock_trade_add['trade'][i])+"','"+str(stock_trade_add['code'][i])+"', \
+    '"+str(stock_trade_add['prod_code'][i])+"','"+str(stock_trade_add['sec_name'][i])+"', \
+    '"+str(stock_trade_add['flag'][i])+"')"
+#insert table字段名不能加引号；
+#读取数据在程序里完成，写入数据库时要标准化为字符串，用加号连接；
+2）生成字典后插入：
+aaa=stock_trade_add.to_dict(orient='records') #按照记录生成字典
+sql2="insert into chinaamcquant.prod_trade_bak(tradedate,market,price,quantity,sec_code,prod_code, \
+    sec_name,flag,source,ID) values (:date,:market,:tradeprice,:trade,:code,:prod_code,:sec_name,:flag,:source,:ID)"
+#根据索引取值，：表示连接索引
+cursor.executemany(sql2,aaa); 
+3）一定要加connection.commit()，不然改变不了；
+
+4.Oracle中文乱码问题：
+import os
+os.environ['NLS_LANG'] = 'SIMPLIFIED CHINESE_CHINA.UTF8'
+#一定要加，不然Oracle读不了中文；
