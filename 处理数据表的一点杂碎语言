@@ -12,12 +12,16 @@ df=df.agg({'成交数量':['sum'],'成交金额':['sum'],'结算价':['mean'],'m
 
 4.删除记录
 df=df.drop(index='IF1812')
+df=df.drop(columns=[''])
 ＃删除index为股指期货的记录
 
 5.df.apply很好用
-df['hedge']=df.apply(lambda x:x['multiple']['mean']*x['hedgenumber']*x['结算价']['mean'],axis=1)
+1)df['hedge']=df.apply(lambda x:x['multiple']['mean']*x['hedgenumber']*x['结算价']['mean'],axis=1)
 #lambda x表示对每行进行操作，x为表示行的参数；axis＝1表示操作在列之间
 #df.apply可以对dataframe进行某些操作，后面可以直接跟function；可以用于对行、列、单个元素的操作；
+2)def function
+df['column2']=df['column1'].apply(function):
+#写好判断函数，根据dataframe的一列创建dataframe的新一列；
 
 6.分组后取每组最后一行：
 1).遍历每组（速度较慢）：
@@ -35,7 +39,7 @@ df1=df1.reset_index()     #排序之后index可能乱了，这个时候需要重
 df2=df1.groupby().tail(1) #返回分组后所有组的最后一行，自成一个dataframe；
 
 7.对dataframe的每行进行遍历：
-for index,row in df:   #对象为object，要变成值需要返回；
+for index,row in df.iterrows():   #对象为object，要变成值需要返回；
 row['']=row['']-row[''].shift(1)   #shift（1）为列往下移动一格；
 
 8.None,NaN：
@@ -62,16 +66,7 @@ df[df['column']!=] #切片[]表示筛选条件；
 df[df.isnull().values==True] #用切片筛选出空值；
 df[df['column'].isin()] #筛选列值在某集合内的记录；
 
-14.sql语句：
-select...from...where...orderby...
-insert into table(index) values(values)
-建立游标连接数据库执行sql:
-conn=cx_Oracle.connect()
-cursor=conn.cursor()
-cursor.execute()
-cursor.fetchall/fetchone()
-
-15.对nan的处理：
+14.对nan的处理：
 df.dropna() #drop掉空值
 df.fillna() #填充空值
 
