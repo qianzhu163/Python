@@ -70,6 +70,19 @@ df[df['column'].isin()] #筛选列值在某集合内的记录；
 df.dropna() #drop掉空值
 df.fillna() #填充空值
 
+15.Dataframe转成dictionary的无数种方式：
+1)df1=df.to_dict(orient='dict'):
+返回的是dict of dict（字典里包含字典），以column index为dict index，row index为dict of dict的index；
+2）df2=df.to_dict(orient='list'):
+返回列表的字典，以column index为dict index，column值为list；
+3）df3=df.to_dict(orient='series'):
+返回序列的字典；
+4)df4=df.to_dict(orient='records'):
+返回字典的列表，一条记录为一个dict，column index为index；
 
+16.查看序列（dataframe列）中的不同值：
+#print(fund1['prod_code'].unique())；
 
+17.#将dataframe中一列当作list给存下来：
+code_container=list(fund1['证券代码'].drop_duplicates())
 
